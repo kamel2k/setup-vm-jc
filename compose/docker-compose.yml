@@ -1,0 +1,85 @@
+version: '3.2'
+
+services:
+  jenkins:
+    image: h1kkan/jenkins-docker:lts
+    restart: always
+    ports:
+      - target: 8080
+        published: 8080
+        protocol: tcp
+        mode: host
+    networks:
+      - labnet
+    volumes:
+      - jenkins-home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    container_name: jenkins
+  postgres:
+      image: postgres:9.5
+      restart: always
+      environment:
+       - "POSTGRES_USER=dbuser"
+       - "POSTGRES_PASSWORD=dbpass"
+       - "POSTGRES_DB=gogs"
+      volumes:
+       - "db-data:/var/lib/postgresql/data"
+      networks:
+       - labnet
+  gogs:
+      image: gogs/gogs
+      restart: always
+      ports:
+       - "10022:22"
+       - "3000:3000"
+      links:
+       - postgres
+      environment:
+       - "RUN_CROND=true"
+      networks:
+       - labnet
+      volumes:
+       - "gogs-data:/data"
+      depends_on:
+       - postgres
+  sonarqube:
+      image: sonarqube
+      restart: always
+      ports:
+       - "9000:9000"
+      networks:
+       - labnet
+      environment:
+       - SONARQUBE_JDBC_URL=jdbc:postgresql://db:5432/sonar
+      volumes:
+       - sonarqube_conf:/opt/sonarqube/conf
+       - sonarqube_data:/opt/sonarqube/data
+       - sonarqube_extensions:/opt/sonarqube/extensions
+       - sonarqube_bundled-plugins:/opt/sonarqube/lib/bundled-plugins
+  db:
+      image: postgres
+      restart: always
+      networks:
+       - labnet
+      environment:
+       - POSTGRES_USER=sonar
+       - POSTGRES_PASSWORD=sonar
+      volumes:
+       - postgresql:/var/lib/postgresql
+       # This needs explicit mapping due to https://github.com/docker-library/postgres/blob/4e48e3228a30763913ece952c611e5e9b95c8759/Dockerfile.template#L52
+       - postgresql_data:/var/lib/postgresql/data
+
+networks:
+  labnet:
+    driver: bridge
+
+volumes:
+    jenkins-home:
+    sonarqube_conf:
+    sonarqube_data:
+    sonarqube_extensions:
+    sonarqube_bundled-plugins:
+    postgresql:
+    postgresql_data:
+    db-data:
+    gogs-data:
