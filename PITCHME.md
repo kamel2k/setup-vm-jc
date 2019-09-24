@@ -1,77 +1,132 @@
-# Let's Get Started
+## Setup VM JC
 
 ---
 
-## Add Some Slide Candy
+### Prerequisites
 
-![IMAGE](assets/img/presentation.png)
+- Memory : 6GB
+- Disk : 10 GB
 
----?color=linear-gradient(180deg, white 75%, black 25%)
-@title[Customize Slide Layout]
-
-@snap[west span-50]
-## Customize the Layout
-@snapend
-
-@snap[east span-50]
-![IMAGE](assets/img/presentation.png)
-@snapend
-
-@snap[south span-100 text-white]
-Snap Layouts let you create custom slide designs directly within your markdown.
-@snapend
-
----?color=linear-gradient(90deg, #5384AD 65%, white 35%)
-@title[Add A Little Imagination]
-
-@snap[north-west h4-white]
-#### And start presenting...
-@snapend
-
-@snap[west span-55]
-@ul[list-spaced-bullets text-white text-09]
-- You will be amazed
-- What you can achieve
-- *With a little imagination...*
-- And **GitPitch Markdown**
-@ulend
-@snapend
-
-@snap[east span-45]
-@img[shadow](assets/img/conference.png)
-@snapend
+### Outils utilisés dans ce lab
++ [Virtualbox](https://www.virtualbox.org/wiki/Downloads)
++ [Vagrant](https://www.vagrantup.com/downloads.html)
++ [Docker](https://docs.docker.com/install/)
++ [Jenkins](https://jenkins.io/download/)
++ [Sonarqube](https://www.sonarqube.org/downloads/)
++ [Gogs](https://gogs.io/docs/installation)
 
 ---
-
-@snap[north-east span-100 text-pink text-06]
-Let your code do the talking!
-@snapend
-
-```sql zoom-18
-CREATE TABLE "topic" (
-    "id" serial NOT NULL PRIMARY KEY,
-    "forum_id" integer NOT NULL,
-    "subject" varchar(255) NOT NULL
-);
-ALTER TABLE "topic"
-ADD CONSTRAINT forum_id
-FOREIGN KEY ("forum_id")
-REFERENCES "forum" ("id");
+### Préparer le dossier de travail
+```
+mkdir vm
+```
+---
+### initialiser une vm basé sur ubuntu/xenial64
+```
+vagrant box add --name ubuntu/xenial64 local_box_file.box
+vagrant init -m ubuntu/xenial64
 ```
 
-@snap[south span-100 text-gray text-08]
-@[1-5](You can step-and-ZOOM into fenced-code blocks, source files, and Github GIST.)
-@[6,7, zoom-13](Using GitPitch live code presenting with optional annotations.)
-@[8-9, zoom-12](This means no more switching between your slide deck and IDE on stage.)
-@snapend
+Un fichier Vagrantfile est crée, contenant la description de la VM.
+---
+### Démarrer la vm
+```
+vagrant up
+```
+---
+### Appliquer 6Go de mémoire à la vm
+Dans le fichier Vagrantfile rajouter
+```
+config.vm.provider "virtualbox" do |vb|
+  vb.memory = "6144"
+end
+```
+---
+### Recharger la configuration de la vm et vérifier la taille memoire
+```
+vagrant reload
+```
+---
+### Approvisionnement de la vm
 
+Dans le fichier Vagrantfile rajouter
 
----?image=assets/img/presenter.jpg
+#### en root
+```
+config.vm.provision "shell", inline: <<-SHELL
+  # appliquer : update, upgrade
+  # installer les packages  wget zip unzip vim git openjdk-8-jdk
+  # installer docker
+  # installer docker-compose
+  # patch de l'os avec l'instruction suivante
+  # update max_map_count used by sonarqube avec cette instruction
+  sysctl -w vm.max_map_count=262144  
+SHELL
+```
+---
+#### avec vagrant user
+```
+config.vm.provision "shell", privileged: false, inline: <<-SHELL
+  # Maven installation
+  curl -s "https://get.sdkman.io" | bash
+  source $HOME/.sdkman/bin/sdkman-init.sh
+  sdk version
+  sdk install maven 3.6.0
+  source .bashrc
+  java -version
+  mvn --version
+SHELL
+```  
+---
+### Relancer l'étape d'approvisionnement
+```  
+vagrant provision
+```  
+---
+### Accéder à la vm
+```  
+vagrant ssh
+```  
+---
+### Vérifier les outils installés
+```  
+java -version
+mvn --version
+docker -v
+docker-compose -v
+```  
+---
+### Préparation des conteneurs
 
-@snap[north span-100 h2-white]
-## Now It's Your Turn
-@snapend
+#### Créer le dossier compose à la racine du dossier work
+```  
+mkdir compose
+```  
 
-@snap[south span-100 text-06]
-[Click here to jump straight into the interactive feature guides in the GitPitch Docs @fa[external-link]](https://gitpitch.com/docs/getting-started/tutorial/)
-@snapend
+#### Créer un fichier docker-compose.yml dans le dossier compose
+
+Avec le contenu suivant :
+https://github.com/kamel2k/setup-vm-jc/blob/master/compose/docker-compose.yml
+
+#### Lancer le compose lors de l'approvisionnement de la vm
+Dans Vagrantfile rajouter
+```
+config.vm.provision "shell", inline: <<-SHELL
+   cd /vagrant/compose && docker-compose up
+SHELL
+```
+---
+#### Redirection de ports de la VM
+Dans Vagrantfile rajouter
+```
+config.vm.network "forwarded_port", guest: 8080, host: 8080 # jenkins
+config.vm.network "forwarded_port", guest: 3000, host: 3000 # git
+config.vm.network "forwarded_port", guest: 8081, host: 8081 # application
+config.vm.network "forwarded_port", guest: 9000, host: 9000 # sonarqube
+```
+---
+### Tester les accès aux applications
++ [Jenkins](http://localhost:8080)
++ [Gogs](http://localhost:8080)
++ [Sonarqube](http://localhost:9000)
+---
